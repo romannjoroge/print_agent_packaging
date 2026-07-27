@@ -1,0 +1,26 @@
+# Print Agent config example
+# This file is shipped with the installer as the default config.
+# Edit via the Configure Print Agent GUI, or manually.
+
+odoo_url: "http://localhost:8069"
+
+printers:
+  - name: receipt_main
+    connection_type: network
+    host: "192.168.1.100"
+    port: 9100
+    api_key: "your-printer-api-key"
+
+  # Example USB printer (uncomment and configure):
+  # - name: receipt_usb
+  #   connection_type: usb
+  #   vendor_id: 0x0456
+  #   product_id: 0x0808
+  #   api_key: "your-usb-printer-api-key"
+
+  # Example IPP printer (uncomment and configure):
+  # - name: hp_office
+  #   connection_type: ipp
+  #   host: "192.168.1.50"
+  #   port: 631
+  #   api_key: "your-printer-api-key"
