@@ -19,16 +19,26 @@ import signal
 import sys
 import threading
 
-logger = logging.getLogger("print_agent.service")
+import winservicetools # remember to remove later if I want to support dev testing
+
+logger = logging.getLogger(__name__)
+here = os.path.dirname(__file__) if os.path.dirname(__file__) else os.getcwd()
+kwargs = {
+          'filename': os.path.join(here, 'script-service.log'),
+          'filemode': 'w',
+          'format': '%(asctime)s\t%(name)s:%(levelname)s:%(process)d:%(message)s',
+          'level': logging.NOTSET,
+         }
+logging.basicConfig(**kwargs)
 
 
-def _get_log_path() -> str:
-    """Return a log file path next to the script/exe."""
-    if getattr(sys, "frozen", False):
-        base = os.path.dirname(sys.executable)
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, "print_agent_service.log")
+# def _get_log_path() -> str:
+#     """Return a log file path next to the script/exe."""
+#     if getattr(sys, "frozen", False):
+#         base = os.path.dirname(sys.executable)
+#     else:
+#         base = os.path.dirname(os.path.abspath(__file__))
+#     return os.path.join(base, "print_agent_service.log")
 
 
 def service_main(service_event: threading.Event) -> None:
@@ -45,11 +55,13 @@ def service_main(service_event: threading.Event) -> None:
     job_delay = 2.0
 
     # Set up file logging (no console when running as a service)
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        filename=_get_log_path(),
-    )
+    # logging.basicConfig(
+    #     level=logging.DEBUG,
+    #     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    #     filename=_get_log_path(),
+    # )
+
+    logger.info("Logging has been set up succesfully!")
 
     try:
         config = Config.from_file(config_path)
@@ -68,77 +80,85 @@ def service_main(service_event: threading.Event) -> None:
     logger.info("Print agent service stopping")
 
 
-def parse_service_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse foreground-mode CLI arguments (config path, verbose, job-delay)."""
-    parser = argparse.ArgumentParser(description="Print Agent Service")
-    parser.add_argument("-c", "--config", default="config.yaml")
-    parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("--job-delay", type=float, default=2.0)
-    return parser.parse_args(argv)
+# def parse_service_args(argv: list[str] | None = None) -> argparse.Namespace:
+#     """Parse foreground-mode CLI arguments (config path, verbose, job-delay)."""
+#     parser = argparse.ArgumentParser(description="Print Agent Service")
+#     parser.add_argument("-c", "--config", default="config.yaml")
+#     parser.add_argument("-v", "--verbose", action="store_true")
+#     parser.add_argument("--job-delay", type=float, default=2.0)
+#     return parser.parse_args(argv)
 
 
-# --- Service class (only available when winservicetools is installed) ---
+# # --- Service class (only available when winservicetools is installed) ---
 
-PrintAgentService = None
+# PrintAgentService = None
 
-try:
-    import winservicetools
+# try:
+#     import winservicetools
 
-    PrintAgentService = winservicetools.WindowsSvc.new_service(
+#     PrintAgentService = winservicetools.WindowsSvc.new_service(
+#         target=service_main,
+#         svc_name="PrintAgent",
+#         svc_display_name="Print Agent",
+#         svc_description="Polls Odoo for pending receipt print jobs and prints them.",
+#         svc_start="auto",
+#     )
+# except ImportError:
+#     pass
+
+
+# def main() -> int:
+#     """Entry point — start the service or run in foreground mode."""
+#     if sys.platform == "win32" and not sys.argv[1:] and PrintAgentService is not None:
+#         # No args: start as a Windows service (SCM mode)
+#         PrintAgentService.start()
+#         return 0
+
+#     # Foreground mode (development / non-Windows)
+#     args = parse_service_args()
+
+#     logging.basicConfig(
+#         level=logging.DEBUG if args.verbose else logging.INFO,
+#         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+#         stream=sys.stdout,
+#     )
+
+#     stop_event = threading.Event()
+
+#     def _handle_signal(signum, frame):
+#         logger.info("Received signal %d, shutting down", signum)
+#         stop_event.set()
+
+#     signal.signal(signal.SIGINT, _handle_signal)
+#     signal.signal(signal.SIGTERM, _handle_signal)
+
+#     from print_agent.config import Config, ConfigError
+#     from print_agent.orchestrator import Orchestrator
+
+#     try:
+#         config = Config.from_file(args.config)
+#     except ConfigError as e:
+#         logger.error("Configuration error: %s", e)
+#         return 1
+
+#     logger.info("Print agent starting with %d printer(s)", len(config.printers))
+#     orch = Orchestrator(config, job_delay=args.job_delay)
+
+#     stop_event.set()  # starts in "running" state
+#     while stop_event.is_set():
+#         orch._poll_once()
+#         stop_event.wait(timeout=args.job_delay)
+
+#     return 0
+
+PrintAgentService = winservicetools.WindowsSvc.new_service(
         target=service_main,
         svc_name="PrintAgent",
         svc_display_name="Print Agent",
         svc_description="Polls Odoo for pending receipt print jobs and prints them.",
         svc_start="auto",
     )
-except ImportError:
-    pass
-
-
-def main() -> int:
-    """Entry point — start the service or run in foreground mode."""
-    if sys.platform == "win32" and not sys.argv[1:] and PrintAgentService is not None:
-        # No args: start as a Windows service (SCM mode)
-        PrintAgentService.start()
-        return 0
-
-    # Foreground mode (development / non-Windows)
-    args = parse_service_args()
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        stream=sys.stdout,
-    )
-
-    stop_event = threading.Event()
-
-    def _handle_signal(signum, frame):
-        logger.info("Received signal %d, shutting down", signum)
-        stop_event.set()
-
-    signal.signal(signal.SIGINT, _handle_signal)
-    signal.signal(signal.SIGTERM, _handle_signal)
-
-    from print_agent.config import Config, ConfigError
-    from print_agent.orchestrator import Orchestrator
-
-    try:
-        config = Config.from_file(args.config)
-    except ConfigError as e:
-        logger.error("Configuration error: %s", e)
-        return 1
-
-    logger.info("Print agent starting with %d printer(s)", len(config.printers))
-    orch = Orchestrator(config, job_delay=args.job_delay)
-
-    stop_event.set()  # starts in "running" state
-    while stop_event.is_set():
-        orch._poll_once()
-        stop_event.wait(timeout=args.job_delay)
-
-    return 0
-
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # raise SystemExit(main())
+    PrintAgentService.start()
