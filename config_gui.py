@@ -322,16 +322,17 @@ class ConfigGUI:
         btn_frame.grid(row=btn_row, column=0, columnspan=2, pady=10)
 
         def on_ok() -> None:
-            data = {
+            form_data = {
                 "name": name_var.get().strip(),
                 "connection_type": type_var.get(),
             }
             for fname, var in field_vars.items():
                 val = var.get().strip()
                 if val:
-                    data[fname] = val
+                    form_data[fname] = val
 
             try:
+                data = extract_printer_data(form_data)
                 if is_edit:
                     self._manager.update_printer(data["name"], data)
                 else:

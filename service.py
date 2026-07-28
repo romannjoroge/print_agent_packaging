@@ -34,23 +34,46 @@ logging.basicConfig(
 
 
 def service_main(service_event: threading.Event) -> None:
-    """Runs the orchestrator poll loop. Exits when service_event is cleared."""
+    """Runs the orchestrator poll loop. Exits when service_event is cleared.
+
+    Checks the config file's mtime each cycle — if it changed (e.g. the GUI
+    saved new settings), reloads the config and recreates the orchestrator.
+    """
     from print_agent.config import Config, ConfigError
     from print_agent.orchestrator import Orchestrator
 
     config_path = os.path.join(_here, "config.yaml")
     job_delay = 2.0
 
-    try:
+    def _load_orchestrator() -> Orchestrator:
         config = Config.from_file(config_path)
+        logger.info("Loaded config with %d printer(s)", len(config.printers))
+        return Orchestrator(config, job_delay=job_delay)
+
+    try:
+        orch = _load_orchestrator()
     except ConfigError as e:
         logger.error("Configuration error: %s", e)
         return
 
-    logger.info("Print agent service starting with %d printer(s)", len(config.printers))
-    orch = Orchestrator(config, job_delay=job_delay)
+    last_mtime = os.path.getmtime(config_path)
 
     while service_event.is_set():
+        # Check if config file changed
+        try:
+            current_mtime = os.path.getmtime(config_path)
+            if current_mtime != last_mtime:
+                logger.info("Config file changed, reloading...")
+                try:
+                    orch = _load_orchestrator()
+                    last_mtime = current_mtime
+                    logger.info("Config reloaded successfully")
+                except ConfigError as e:
+                    logger.error("Failed to reload config: %s", e)
+                    # Keep running with the old config
+        except OSError:
+            pass  # File temporarily unavailable during save
+
         orch._poll_once()
         service_event.wait(timeout=job_delay)
 
