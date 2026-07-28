@@ -1,12 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for print_agent_service.exe (OPTIONAL).
-
-With winservicetools, this exe is NOT needed — the service runs as
-"pythonw.exe service.py" directly.  This spec is kept for optional
-deployment scenarios where you want a standalone service exe.
+"""PyInstaller spec for print_agent_service.exe.
 
 Build with:
     pyinstaller build/service.spec
+
+The frozen exe includes winservicetools and pywin32.  It supports:
+    print_agent_service.exe install   — registers the service via sc.exe
+    print_agent_service.exe remove    — removes the service
+    (no args)                         — enters the SCM service dispatcher
 """
 
 import os
@@ -37,6 +38,11 @@ a = Analysis(
         'yaml',
         'requests',
         'winservicetools',
+        'win32serviceutil',
+        'win32service',
+        'win32event',
+        'servicemanager',
+        'python-escpos',
     ],
     hookspath=[],
     hooksconfig={},

@@ -424,7 +424,7 @@ cd C:\path\to\print_agent_packaging
 4. Click through the installer wizard.
 5. **Expected:** Installer completes without errors.
 
-- [ ] Installer completed without errors
+- [X] Installer completed without errors
 
 #### 5.3 Verify service is running
 
