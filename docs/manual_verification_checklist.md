@@ -69,7 +69,7 @@ Also check `services.msc`:
 2. Find "Print Agent" in the list.
 3. Status should be "Running", Startup Type should be "Automatic".
 
-- [ ] Service shows "Running" in services.msc
+- [X] Service shows "Running" in services.msc
 
 #### 2.3 Check service log file
 
@@ -83,7 +83,7 @@ Get-Content "C:\path\to\print_agent_packaging\print_agent_service.log"
 **Expected:** Shows "starting with N printer(s)" or a config error if
 `config.yaml` is missing/invalid.
 
-- [ ] Service log file shows startup messages
+- [X] Service log file shows startup messages
 
 #### 2.4 Stop the service
 
@@ -103,7 +103,7 @@ Get-Process -Name "pythonw" -ErrorAction SilentlyContinue
 ```
 **Expected:** No results (process fully terminated).
 
-- [ ] Service stops cleanly, no orphan processes
+- [X] Service stops cleanly, no orphan processes
 
 #### 2.5 Remove the service
 
@@ -118,7 +118,7 @@ Get-Service PrintAgent -ErrorAction SilentlyContinue
 ```
 **Expected:** "Cannot find any service with service name 'PrintAgent'".
 
-- [ ] Service removed from Windows
+- [X] Service removed from Windows
 
 #### 2.6 Run in foreground (development/debug)
 
@@ -352,7 +352,7 @@ pyinstaller build/config_gui.spec
 Note: With winservicetools, no service exe is needed. The service runs as
 `pythonw.exe service.py` directly.
 
-- [ ] Config GUI exe built successfully
+- [X] Config GUI exe built successfully
 
 #### 4.2 Test on a clean machine
 
@@ -378,7 +378,7 @@ cd C:\TestPrintAgent
 
 Close the window when done.
 
-- [ ] Config GUI exe runs on clean machine without Python
+- [X] Config GUI exe runs on clean machine without Python
 
 #### 4.4 Check exe size
 
@@ -387,7 +387,7 @@ Right-click the exe → Properties. It should be roughly 10–30 MB
 
 If it's under 1 MB, something went wrong with the build.
 
-- [ ] Exe size is reasonable (10–30 MB)
+- [X] Exe size is reasonable (10–30 MB)
 
 ---
 
@@ -414,7 +414,7 @@ cd C:\path\to\print_agent_packaging
 
 **Expected:** Output is `installer_output/PrintAgentSetup.exe`.
 
-- [ ] Installer built successfully
+- [X] Installer built successfully
 
 #### 5.2 Run the installer on a fresh VM
 

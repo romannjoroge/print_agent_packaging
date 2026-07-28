@@ -17,7 +17,7 @@
 #define MyAppExeName "print_agent_config.exe"
 
 [Setup]
-AppId={B1E2F3A4-5678-9ABC-DEF0-123456789ABC}
+AppId={{B1E2F3A4-5678-9ABC-DEF0-123456789ABC}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -55,9 +55,9 @@ Name: "{group}\Configure Print Agent"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\Uninstall Print Agent"; Filename: "{uninstallexe}"
 
 [Run]
-; Install and start the Windows service via winservicetools
-; winservicetools.exe is installed into the Python Scripts dir by pip
-Filename: "winservicetools.exe"; Parameters: "install --script ""{app}\service.py"""; StatusMsg: "Installing Print Agent service..."; Flags: runhidden waituntilterminated
+; Install winservicetools package, then register the service
+Filename: "python.exe"; Parameters: "-m pip install winservicetools"; StatusMsg: "Installing winservicetools..."; Flags: runhidden waituntilterminated
+Filename: "python.exe"; Parameters: "-m winservicetools install --script ""{app}\service.py"""; StatusMsg: "Installing Print Agent service..."; Flags: runhidden waituntilterminated
 Filename: "sc.exe"; Parameters: "start PrintAgent"; StatusMsg: "Starting Print Agent service..."; Flags: runhidden waituntilterminated
 
 ; Optionally launch the config GUI after install

@@ -20,7 +20,7 @@ a = Analysis(
     [os.path.join(spec_root, 'config_gui.py')],
     pathex=[spec_root, print_agent_root],
     binaries=[],
-    datas=[],
+    datas=[('config.yaml', '.')],
     hiddenimports=[
         'print_agent',
         'print_agent.config',
@@ -31,6 +31,7 @@ a = Analysis(
         'tkinter',
         'tkinter.ttk',
         'tkinter.messagebox',
+        'winservicetools',
     ],
     hookspath=[],
     hooksconfig={},

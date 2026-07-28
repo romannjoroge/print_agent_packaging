@@ -1,0 +1,7 @@
+odoo_url: http://localhost:8069
+printers:
+- name: Sales Office Printer
+  connection_type: ipp
+  host: 172.27.4.7
+  port: 9100
+  api_key: e8190313-afeb-47cd-bdd0-3bda303d97df
