@@ -51,7 +51,7 @@ def service_main(service_event: threading.Event) -> None:
     from print_agent.config import Config, ConfigError
     from print_agent.orchestrator import Orchestrator
 
-    config_path = "config.yaml"
+    config_path = os.path.join(here, "config.yaml")
     job_delay = 2.0
 
     # Set up file logging (no console when running as a service)
