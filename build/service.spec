@@ -1,15 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for print_agent_service.exe.
+"""PyInstaller spec for print_agent_service.exe (OPTIONAL).
+
+With winservicetools, this exe is NOT needed — the service runs as
+"pythonw.exe service.py" directly.  This spec is kept for optional
+deployment scenarios where you want a standalone service exe.
 
 Build with:
     pyinstaller build/service.spec
-
-The output exe supports standard Windows service verbs:
-    print_agent_service.exe install
-    print_agent_service.exe start
-    print_agent_service.exe stop
-    print_agent_service.exe remove
-    print_agent_service.exe debug
 """
 
 import os
@@ -39,10 +36,7 @@ a = Analysis(
         'print_agent.rendering',
         'yaml',
         'requests',
-        'win32serviceutil',
-        'win32service',
-        'win32event',
-        'servicemanager',
+        'winservicetools',
     ],
     hookspath=[],
     hooksconfig={},

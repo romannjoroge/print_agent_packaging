@@ -1,72 +1,55 @@
-"""Windows service wrapper for print_agent using pywin32.
+"""Windows service wrapper for print_agent using winservicetools.
 
-Provides ServiceStopEvent for clean shutdown signaling and
-parse_service_args for service-specific CLI arguments.
+winservicetools handles all the pywin32/SCM plumbing (no pythonservice.exe,
+no --pipe= detection, no ctypes hacks).  Install with:
 
-The actual Windows service class (PrintAgentService) is only importable
-on Windows with pywin32 installed — it's defined conditionally at the
-bottom of this module.
+    winservicetools.exe install --script C:\\path\\to\\service.py
+
+Or run in foreground for development:
+
+    python service.py
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import os
+import signal
 import sys
 import threading
 
+logger = logging.getLogger("print_agent.service")
 
-class ServiceStopEvent:
-    """Thread-safe stop signal for the orchestrator.
 
-    The Windows service's SvcStop handler calls signal(), and the
-    orchestrator poll loop checks is_stopped or calls wait() between cycles.
+def _get_log_path() -> str:
+    """Return a log file path next to the script/exe."""
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, "print_agent_service.log")
+
+
+def service_main(service_event: threading.Event) -> None:
+    """Target function for the Windows service.
+
+    Runs the orchestrator poll loop, checking service_event between cycles.
+    When the service receives a stop request, winservicetools clears the
+    event and this function exits cleanly.
     """
-
-    def __init__(self) -> None:
-        self._event = threading.Event()
-
-    @property
-    def is_stopped(self) -> bool:
-        return self._event.is_set()
-
-    def signal(self) -> None:
-        self._event.set()
-
-    def wait(self, timeout: float | None = None) -> None:
-        self._event.wait(timeout=timeout)
-
-
-def parse_service_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse service-specific CLI arguments (config path, verbose, job-delay)."""
-    parser = argparse.ArgumentParser(
-        description="Print Agent Windows Service"
-    )
-    parser.add_argument(
-        "-c", "--config",
-        default="config.yaml",
-        help="Path to YAML config file (default: config.yaml)",
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable debug logging",
-    )
-    parser.add_argument(
-        "--job-delay",
-        type=float,
-        default=2.0,
-        help="Seconds to wait between print jobs (default: 2.0)",
-    )
-    return parser.parse_args(argv)
-
-
-def _run_orchestrator(config_path: str, job_delay: float, stop_event: ServiceStopEvent) -> None:
-    """Run the orchestrator poll loop, checking stop_event between cycles."""
     from print_agent.config import Config, ConfigError
     from print_agent.orchestrator import Orchestrator
 
-    logger = logging.getLogger("print_agent.service")
+    config_path = "config.yaml"
+    job_delay = 2.0
+
+    # Set up file logging (no console when running as a service)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        filename=_get_log_path(),
+    )
 
     try:
         config = Config.from_file(config_path)
@@ -77,100 +60,85 @@ def _run_orchestrator(config_path: str, job_delay: float, stop_event: ServiceSto
     logger.info("Print agent service starting with %d printer(s)", len(config.printers))
     orch = Orchestrator(config, job_delay=job_delay)
 
-    while not stop_event.is_stopped:
+    while service_event.is_set():
         orch._poll_once()
         # Wait between cycles, but wake up immediately if stopped
-        stop_event.wait(timeout=job_delay)
+        service_event.wait(timeout=job_delay)
+
+    logger.info("Print agent service stopping")
 
 
-# --- Windows-only service class ---
-# Only import pywin32 on Windows to allow tests to run on any platform.
-
-if sys.platform == "win32":
-    try:
-        import win32serviceutil
-        import win32service
-        import win32event
-        import servicemanager
-
-        class PrintAgentService(win32serviceutil.ServiceFramework):
-            """Windows service wrapping the print_agent orchestrator."""
-
-            _svc_name_ = "PrintAgent"
-            _svc_display_name_ = "Print Agent"
-            _svc_description_ = "Polls Odoo for pending receipt print jobs and prints them."
-
-            def __init__(self, args) -> None:
-                super().__init__(args)
-                self._stop_event = ServiceStopEvent()
-                self._stop_event_win = win32event.CreateEvent(None, 0, 0, None)
-
-            def SvcStop(self) -> None:
-                self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-                self._stop_event.signal()
-                win32event.SetEvent(self._stop_event_win)
-
-            def SvcDoRun(self) -> None:
-                servicemanager.LogMsg(
-                    servicemanager.EVENTLOG_INFORMATION_TYPE,
-                    servicemanager.PYS_SERVICE_STARTED,
-                    (self._svc_name_, ""),
-                )
-                self._main()
-
-            def _main(self) -> None:
-                args = parse_service_args()
-                _run_orchestrator(args.config, args.job_delay, self._stop_event)
-
-    except ImportError:
-        pass  # pywin32 not installed — service class unavailable
+def parse_service_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse foreground-mode CLI arguments (config path, verbose, job-delay)."""
+    parser = argparse.ArgumentParser(description="Print Agent Service")
+    parser.add_argument("-c", "--config", default="config.yaml")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--job-delay", type=float, default=2.0)
+    return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Entry point for the service executable.
+# --- Service class (only available when winservicetools is installed) ---
 
-    On Windows with pywin32: dispatches to win32serviceutil for
-    install/remove/start/stop/debug verbs.
+PrintAgentService = None
 
-    On any platform: if no service verbs given, runs the orchestrator
-    directly (useful for development/testing).
-    """
-    logger = logging.getLogger("print_agent.service")
-    level = logging.DEBUG
-    fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    logging.basicConfig(level=level, format=fmt, stream=sys.stdout)
+try:
+    import winservicetools
 
-    if sys.platform == "win32":
-        try:
-            import win32serviceutil
-            # If a service verb (install, remove, start, stop, debug) is
-            # in the args, let pywin32 handle it.
-            service_verbs = {"install", "remove", "start", "stop", "debug", "update"}
-            cmd_args = argv if argv is not None else sys.argv[1:]
-            if any(v in service_verbs for v in cmd_args):
-                win32serviceutil.HandleCommandLine(PrintAgentService, argv=argv)
-                return 0
-        except ImportError:
-            logger.warning("pywin32 not installed; running in foreground mode")
+    PrintAgentService = winservicetools.WindowsSvc.new_service(
+        target=service_main,
+        svc_name="PrintAgent",
+        svc_display_name="Print Agent",
+        svc_description="Polls Odoo for pending receipt print jobs and prints them.",
+        svc_start="auto",
+    )
+except ImportError:
+    pass
 
-    # Foreground mode (development or non-Windows)
-    args = parse_service_args(argv)
-    logging.getLogger().setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
-    stop_event = ServiceStopEvent()
+def main() -> int:
+    """Entry point — start the service or run in foreground mode."""
+    if sys.platform == "win32" and not sys.argv[1:] and PrintAgentService is not None:
+        # No args: start as a Windows service (SCM mode)
+        PrintAgentService.start()
+        return 0
 
-    import signal
+    # Foreground mode (development / non-Windows)
+    args = parse_service_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=sys.stdout,
+    )
+
+    stop_event = threading.Event()
 
     def _handle_signal(signum, frame):
         logger.info("Received signal %d, shutting down", signum)
-        stop_event.signal()
+        stop_event.set()
 
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    _run_orchestrator(args.config, args.job_delay, stop_event)
+    from print_agent.config import Config, ConfigError
+    from print_agent.orchestrator import Orchestrator
+
+    try:
+        config = Config.from_file(args.config)
+    except ConfigError as e:
+        logger.error("Configuration error: %s", e)
+        return 1
+
+    logger.info("Print agent starting with %d printer(s)", len(config.printers))
+    orch = Orchestrator(config, job_delay=args.job_delay)
+
+    stop_event.set()  # starts in "running" state
+    while stop_event.is_set():
+        orch._poll_once()
+        stop_event.wait(timeout=args.job_delay)
+
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
