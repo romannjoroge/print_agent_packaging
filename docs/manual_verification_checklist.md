@@ -320,6 +320,40 @@ manual restart.
 
 - [ ] Test Print sends job (or shows appropriate error)
 
+#### 3.12 Diagnostics panel: warning banner and error-log dropdown
+
+The main window now has a **Diagnostics / Error Log** section at the bottom:
+
+1. Launch the GUI with a valid `config.yaml`.
+2. **Expected:** The banner shows "No issues detected." (green) when nothing
+   is wrong.
+3. Add an IPP printer and save, then relaunch.
+4. **Expected:** If the printer is configured with an unusual port (e.g.
+   IPP on port 9100), the banner turns amber and shows a hint about port 631.
+5. Open the **Error log** dropdown (read-only combo box). It lists recent
+   entries from `print_agent_service.log` (and current-session events),
+   newest first.
+6. Select an entry and click **Copy** — the entry is copied to the
+   clipboard and a confirmation dialog appears.
+7. Click **Copy All** — the full visible error log is copied to the
+   clipboard (paste into an email/ticket and send to the developer).
+8. Click **Open Log File** — the full `print_agent_service.log` opens in
+   the default text editor.
+9. Trigger a failing Test Print while Odoo is unreachable.
+10. **Expected:** The banner shows a user-friendly warning (e.g. "Could not
+    reach Odoo at ..."), and the dropdown contains the raw error entry with
+    a timestamp, ready to copy.
+
+If the service log contains an IPP 404 error (e.g. "IPP rejected:
+HTTP 404" / "Print rejected: HTTP 404"), the banner shows a warning
+explaining that the printer may not support IPP at the configured
+address/port and suggests checking the Printer URI and port (usually 631).
+
+- [ ] Warning banner shows config issues in amber
+- [ ] Error-log dropdown lists service-log and session entries
+- [ ] Copy / Copy All place log text on the clipboard
+- [ ] Open Log File launches the default text editor
+
 ---
 
 ## Phase 4: PyInstaller Builds (manual verification)
